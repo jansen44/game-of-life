@@ -1,3 +1,4 @@
+mod gpu;
 mod state;
 
 use state::State;
@@ -7,7 +8,8 @@ const WIN_HEIGHT: u32 = 720;
 
 fn main() {
     let (event_loop, window) = setup_window();
-    let state = pollster::block_on(state::init(window));
+    let state = state::init(window);
+
     run(event_loop, state);
 }
 
@@ -29,11 +31,11 @@ fn setup_window() -> (winit::event_loop::EventLoop<()>, winit::window::Window) {
     (event_loop, window)
 }
 
-fn run(event_loop: winit::event_loop::EventLoop<()>, state: State) {
+fn run(event_loop: winit::event_loop::EventLoop<()>, mut state: State) {
     use winit::event::{Event, WindowEvent};
     use winit::event_loop::ControlFlow;
 
-    fn handle_win_event(event: &WindowEvent, _state: &State, control_flow: &mut ControlFlow) {
+    fn handle_win_event(event: &WindowEvent, _state: &mut State, control_flow: &mut ControlFlow) {
         match event {
             WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
             _ => (),
@@ -41,7 +43,8 @@ fn run(event_loop: winit::event_loop::EventLoop<()>, state: State) {
     }
 
     event_loop.run(move |event, _, control_flow| match event {
-        Event::WindowEvent { ref event, .. } => handle_win_event(event, &state, control_flow),
+        Event::WindowEvent { ref event, .. } => handle_win_event(event, &mut state, control_flow),
+        Event::RedrawRequested(_) => state.update(),
         Event::MainEventsCleared => state.window().request_redraw(),
         _ => (),
     })

@@ -1,13 +1,27 @@
+use winit::window::Window;
+
+use crate::gpu::Gpu;
+
 pub struct State {
-    window: winit::window::Window,
+    gpu: Gpu,
+    window: Window,
 }
 
 impl State {
-    pub fn window(&self) -> &winit::window::Window {
+    pub async fn new(window: Window) -> Self {
+        let gpu = Gpu::new(&window).await;
+        Self { gpu, window }
+    }
+
+    pub fn window(&self) -> &Window {
         &self.window
+    }
+
+    pub fn update(&mut self) {
+        self.gpu.render();
     }
 }
 
-pub async fn init(window: winit::window::Window) -> State {
-    State { window }
+pub fn init(window: Window) -> State {
+    pollster::block_on(State::new(window))
 }
