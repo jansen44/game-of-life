@@ -35,14 +35,12 @@ const VERTICES: &[Vertex2d] = &[
 
 fn normalized_vertices(dimensions: PhysicalSize<u32>) -> Vec<Vertex2d> {
     let vertices = VERTICES.to_owned();
+    let aspect_ratio = dimensions.width as f32 / dimensions.height as f32;
 
     vertices
         .into_iter()
         .map(|e| Vertex2d {
-            pos: [
-                e.pos[0] * dimensions.width as f32,
-                e.pos[1] * dimensions.height as f32,
-            ],
+            pos: [e.pos[0], e.pos[1] * aspect_ratio],
         })
         .collect()
 }
