@@ -1,5 +1,5 @@
 use wgpu::{
-    util::DeviceExt, Device, PipelineLayoutDescriptor, Queue, RenderPipeline,
+    util::DeviceExt, BindGroup, Device, PipelineLayoutDescriptor, Queue, RenderPipeline,
     RenderPipelineDescriptor, Surface, SurfaceCapabilities, SurfaceConfiguration,
 };
 use winit::dpi::PhysicalSize;
@@ -24,13 +24,20 @@ impl Vertex2d {
     }
 }
 
+#[rustfmt::skip]
 const VERTICES: &[Vertex2d] = &[
-    Vertex2d { pos: [-0.5, 0.5] },
-    Vertex2d { pos: [-0.5, -0.5] },
-    Vertex2d { pos: [0.5, -0.5] },
-    Vertex2d { pos: [-0.5, 0.5] },
-    Vertex2d { pos: [0.5, -0.5] },
-    Vertex2d { pos: [0.5, 0.5] },
+    Vertex2d { pos: [-1.0,  1.0] },
+    Vertex2d { pos: [-1.0, -1.0] },
+    Vertex2d { pos: [ 1.0, -1.0] },
+    Vertex2d { pos: [ 1.0,  1.0] },
+];
+
+#[rustfmt::skip]
+// wgpu automatically aligns to 4bytes,
+// anything smaller than u32 has no real gain
+const INDICES: &[u32] = &[
+  0, 1, 2,
+  0, 2, 3,
 ];
 
 fn normalized_vertices(dimensions: PhysicalSize<u32>) -> Vec<Vertex2d> {
@@ -50,7 +57,11 @@ pub struct Gpu {
     queue: Queue,
     surface: Surface,
     square_pipeline: RenderPipeline,
+
     vertex_buffer: wgpu::Buffer,
+    index_buffer: wgpu::Buffer,
+    _uni_buffer: wgpu::Buffer,
+    uni_bind_group: BindGroup,
 
     pub surface_config: SurfaceConfiguration,
     pub surface_caps: SurfaceCapabilities,
@@ -89,8 +100,9 @@ impl Gpu {
 
         surface.configure(&device, &surface_config);
 
-        let vertex_buffer = Self::init_buffers(&device, dimensions);
-        let square_pipeline = Self::init_pipelines(&device, &surface_config);
+        let (vertex_buffer, index_buffer, uni_buffer) = Self::init_buffers(&device, dimensions);
+        let (square_pipeline, uni_bind_group) =
+            Self::init_pipelines(&device, &surface_config, &uni_buffer);
 
         Self {
             device,
@@ -100,27 +112,82 @@ impl Gpu {
             surface_config,
             square_pipeline,
             vertex_buffer,
+            index_buffer,
+            _uni_buffer: uni_buffer,
+            uni_bind_group,
         }
     }
 
-    fn init_buffers(device: &Device, dimensions: PhysicalSize<u32>) -> wgpu::Buffer {
-        device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+    fn init_buffers(
+        device: &Device,
+        dimensions: PhysicalSize<u32>,
+    ) -> (wgpu::Buffer, wgpu::Buffer, wgpu::Buffer) {
+        let vertex = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: None,
             contents: bytemuck::cast_slice(&normalized_vertices(dimensions)[..]),
             usage: wgpu::BufferUsages::VERTEX,
-        })
+        });
+
+        let indice = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: None,
+            contents: bytemuck::cast_slice(INDICES),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+
+        #[rustfmt::skip]
+        let transform_uni: [f32; 16] = [
+            0.01, 0.0, 0.0, 0.0,
+            0.0, 0.01, 0.0, 0.0,
+            0.0, 0.0, 1.0, 0.0,
+            0.0, 0.0, 0.0, 1.0,
+        ];
+
+        let uni = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: None,
+            contents: bytemuck::cast_slice(&transform_uni),
+            usage: wgpu::BufferUsages::UNIFORM,
+        });
+
+        (vertex, indice, uni)
     }
 
-    fn init_pipelines(device: &Device, config: &SurfaceConfiguration) -> RenderPipeline {
+    fn init_pipelines(
+        device: &Device,
+        config: &SurfaceConfiguration,
+        uni_buffer: &wgpu::Buffer,
+    ) -> (RenderPipeline, BindGroup) {
         let square_shader = device.create_shader_module(wgpu::include_wgsl!("square.wgsl"));
+
+        let uni_bg_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: None,
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                count: None,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                    ty: wgpu::BufferBindingType::Uniform,
+                },
+            }],
+        });
+
+        let uni_bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: None,
+            layout: &uni_bg_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: uni_buffer.as_entire_binding(),
+            }],
+        });
 
         let layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
             label: None,
-            bind_group_layouts: &[],
+            bind_group_layouts: &[&uni_bg_layout],
             push_constant_ranges: &[],
         });
 
-        device.create_render_pipeline(&RenderPipelineDescriptor {
+        let pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
             label: Some("Square Pipeline"),
             depth_stencil: None,
             multiview: None,
@@ -155,7 +222,9 @@ impl Gpu {
                 polygon_mode: wgpu::PolygonMode::Fill,
                 conservative: false,
             },
-        })
+        });
+
+        (pipeline, uni_bg)
     }
 
     pub fn render(&self) {
@@ -188,8 +257,10 @@ impl Gpu {
             });
 
             pass.set_pipeline(&self.square_pipeline);
+            pass.set_bind_group(0, &self.uni_bind_group, &[]);
             pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            pass.draw(0..6, 0..1);
+            pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+            pass.draw_indexed(0..INDICES.len() as u32, 0, 0..1);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
