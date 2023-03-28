@@ -1,4 +1,6 @@
+mod cell;
 mod gpu;
+mod math;
 mod state;
 
 use state::State;
@@ -21,6 +23,7 @@ fn setup_window() -> (winit::event_loop::EventLoop<()>, winit::window::Window) {
 
     let event_loop = winit::event_loop::EventLoop::new();
     let window = winit::window::WindowBuilder::new()
+        .with_title("Conway's Game of Life")
         .with_inner_size(winit::dpi::LogicalSize::new(WIN_WIDTH, WIN_HEIGHT))
         .with_resizable(false)
         .build(&event_loop)

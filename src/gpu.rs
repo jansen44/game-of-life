@@ -1,74 +1,38 @@
-use wgpu::{
-    util::DeviceExt, BindGroup, Device, PipelineLayoutDescriptor, Queue, RenderPipeline,
-    RenderPipelineDescriptor, Surface, SurfaceCapabilities, SurfaceConfiguration,
+mod instance;
+mod pipeline;
+mod uniform;
+mod vertex;
+
+use crate::{
+    cell::Cell,
+    state::{GRID_COLUMN_SIZE, GRID_LINE_SIZE},
 };
-use winit::dpi::PhysicalSize;
+use vertex::{VertexBuffer, INDICES};
+use wgpu::{Device, Queue, Surface, SurfaceCapabilities, SurfaceConfiguration};
 
-#[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-struct Vertex2d {
-    pos: [f32; 2],
-}
-
-impl Vertex2d {
-    pub fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
-        wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<Self>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[wgpu::VertexAttribute {
-                offset: 0,
-                shader_location: 0,
-                format: wgpu::VertexFormat::Float32x2,
-            }],
-        }
-    }
-}
-
-#[rustfmt::skip]
-const VERTICES: &[Vertex2d] = &[
-    Vertex2d { pos: [-1.0,  1.0] },
-    Vertex2d { pos: [-1.0, -1.0] },
-    Vertex2d { pos: [ 1.0, -1.0] },
-    Vertex2d { pos: [ 1.0,  1.0] },
-];
-
-#[rustfmt::skip]
-// wgpu automatically aligns to 4bytes,
-// anything smaller than u32 has no real gain
-const INDICES: &[u32] = &[
-  0, 1, 2,
-  0, 2, 3,
-];
-
-fn normalized_vertices(dimensions: PhysicalSize<u32>) -> Vec<Vertex2d> {
-    let vertices = VERTICES.to_owned();
-    let aspect_ratio = dimensions.width as f32 / dimensions.height as f32;
-
-    vertices
-        .into_iter()
-        .map(|e| Vertex2d {
-            pos: [e.pos[0], e.pos[1] * aspect_ratio],
-        })
-        .collect()
-}
+use self::{
+    instance::{init_cell_instances, InstanceBuffers},
+    pipeline::{init_pipeline, Pipeline},
+    uniform::init_uniforms,
+    vertex::init_buffers,
+};
 
 pub struct Gpu {
     device: Device,
     queue: Queue,
     surface: Surface,
-    square_pipeline: RenderPipeline,
 
-    vertex_buffer: wgpu::Buffer,
-    index_buffer: wgpu::Buffer,
-    _uni_buffer: wgpu::Buffer,
-    uni_bind_group: BindGroup,
+    square_pipeline: Pipeline,
+
+    square_buffers: VertexBuffer,
+    instance_buffers: InstanceBuffers,
 
     pub surface_config: SurfaceConfiguration,
     pub surface_caps: SurfaceCapabilities,
 }
 
 impl Gpu {
-    pub async fn new(window: &winit::window::Window) -> Self {
+    pub async fn new(window: &winit::window::Window, cells: &[Cell]) -> Self {
         let dimensions = window.inner_size();
 
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::default());
@@ -100,9 +64,10 @@ impl Gpu {
 
         surface.configure(&device, &surface_config);
 
-        let (vertex_buffer, index_buffer, uni_buffer) = Self::init_buffers(&device, dimensions);
-        let (square_pipeline, uni_bind_group) =
-            Self::init_pipelines(&device, &surface_config, &uni_buffer);
+        let square_buffers = init_buffers(&device);
+        let instance_buffers = init_cell_instances(&device, cells);
+        let uniform_buffers = init_uniforms(&device, dimensions);
+        let square_pipeline = init_pipeline(&device, &surface_config, &uniform_buffers);
 
         Self {
             device,
@@ -110,121 +75,11 @@ impl Gpu {
             queue,
             surface_caps,
             surface_config,
+
             square_pipeline,
-            vertex_buffer,
-            index_buffer,
-            _uni_buffer: uni_buffer,
-            uni_bind_group,
+            square_buffers,
+            instance_buffers,
         }
-    }
-
-    fn init_buffers(
-        device: &Device,
-        dimensions: PhysicalSize<u32>,
-    ) -> (wgpu::Buffer, wgpu::Buffer, wgpu::Buffer) {
-        let vertex = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: None,
-            contents: bytemuck::cast_slice(&normalized_vertices(dimensions)[..]),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-
-        let indice = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: None,
-            contents: bytemuck::cast_slice(INDICES),
-            usage: wgpu::BufferUsages::INDEX,
-        });
-
-        #[rustfmt::skip]
-        let transform_uni: [f32; 16] = [
-            0.01, 0.0, 0.0, 0.0,
-            0.0, 0.01, 0.0, 0.0,
-            0.0, 0.0, 1.0, 0.0,
-            0.0, 0.0, 0.0, 1.0,
-        ];
-
-        let uni = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: None,
-            contents: bytemuck::cast_slice(&transform_uni),
-            usage: wgpu::BufferUsages::UNIFORM,
-        });
-
-        (vertex, indice, uni)
-    }
-
-    fn init_pipelines(
-        device: &Device,
-        config: &SurfaceConfiguration,
-        uni_buffer: &wgpu::Buffer,
-    ) -> (RenderPipeline, BindGroup) {
-        let square_shader = device.create_shader_module(wgpu::include_wgsl!("square.wgsl"));
-
-        let uni_bg_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: None,
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                count: None,
-                visibility: wgpu::ShaderStages::VERTEX,
-                ty: wgpu::BindingType::Buffer {
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                    ty: wgpu::BufferBindingType::Uniform,
-                },
-            }],
-        });
-
-        let uni_bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: None,
-            layout: &uni_bg_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: uni_buffer.as_entire_binding(),
-            }],
-        });
-
-        let layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
-            label: None,
-            bind_group_layouts: &[&uni_bg_layout],
-            push_constant_ranges: &[],
-        });
-
-        let pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
-            label: Some("Square Pipeline"),
-            depth_stencil: None,
-            multiview: None,
-            multisample: wgpu::MultisampleState {
-                count: 1,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
-            },
-
-            layout: Some(&layout),
-            vertex: wgpu::VertexState {
-                module: &square_shader,
-                buffers: &[Vertex2d::desc()],
-                entry_point: "vs_main",
-            },
-            fragment: Some(wgpu::FragmentState {
-                entry_point: "fs_main",
-                module: &square_shader,
-                targets: &[Some(wgpu::ColorTargetState {
-                    blend: Some(wgpu::BlendState::REPLACE),
-                    format: config.format,
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-            }),
-
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: Some(wgpu::Face::Back),
-                unclipped_depth: false,
-                polygon_mode: wgpu::PolygonMode::Fill,
-                conservative: false,
-            },
-        });
-
-        (pipeline, uni_bg)
     }
 
     pub fn render(&self) {
@@ -256,11 +111,22 @@ impl Gpu {
                 depth_stencil_attachment: None,
             });
 
-            pass.set_pipeline(&self.square_pipeline);
-            pass.set_bind_group(0, &self.uni_bind_group, &[]);
-            pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-            pass.draw_indexed(0..INDICES.len() as u32, 0, 0..1);
+            pass.set_pipeline(&self.square_pipeline.pipeline);
+            pass.set_bind_group(0, &self.square_pipeline.bindgroups.projection_mat, &[]);
+
+            pass.set_vertex_buffer(0, self.square_buffers.vertex.slice(..));
+            pass.set_index_buffer(
+                self.square_buffers.index.slice(..),
+                wgpu::IndexFormat::Uint32,
+            );
+
+            pass.set_vertex_buffer(1, self.instance_buffers.cells.slice(..));
+
+            pass.draw_indexed(
+                0..INDICES.len() as u32,
+                0,
+                0..(GRID_COLUMN_SIZE * GRID_LINE_SIZE) as _,
+            );
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
