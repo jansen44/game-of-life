@@ -32,6 +32,11 @@ impl InstanceBuffers {
                     shader_location: 4,
                     format: wgpu::VertexFormat::Float32x4,
                 },
+                wgpu::VertexAttribute {
+                    offset: std::mem::size_of::<[f32; 16]>() as wgpu::BufferAddress,
+                    shader_location: 5,
+                    format: wgpu::VertexFormat::Uint32,
+                },
             ],
         }
     }
@@ -42,7 +47,7 @@ pub fn init_cell_instances(device: &Device, cells: &[Cell]) -> InstanceBuffers {
     let cells = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: None,
         contents: bytemuck::cast_slice(&instance_data),
-        usage: BufferUsages::VERTEX,
+        usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
     });
     InstanceBuffers { cells }
 }

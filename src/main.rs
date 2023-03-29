@@ -4,16 +4,11 @@ mod math;
 mod state;
 
 use state::State;
+use winit::event::{Event, WindowEvent};
+use winit::event_loop::ControlFlow;
 
-const WIN_WIDTH: u32 = 1280;
+const WIN_WIDTH: u32 = 1285;
 const WIN_HEIGHT: u32 = 720;
-
-fn main() {
-    let (event_loop, window) = setup_window();
-    let state = state::init(window);
-
-    run(event_loop, state);
-}
 
 fn setup_window() -> (winit::event_loop::EventLoop<()>, winit::window::Window) {
     simple_logger::SimpleLogger::new()
@@ -34,16 +29,17 @@ fn setup_window() -> (winit::event_loop::EventLoop<()>, winit::window::Window) {
     (event_loop, window)
 }
 
-fn run(event_loop: winit::event_loop::EventLoop<()>, mut state: State) {
-    use winit::event::{Event, WindowEvent};
-    use winit::event_loop::ControlFlow;
-
-    fn handle_win_event(event: &WindowEvent, _state: &mut State, control_flow: &mut ControlFlow) {
-        match event {
-            WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-            _ => (),
-        }
+fn handle_win_event(event: &WindowEvent, state: &mut State, control_flow: &mut ControlFlow) {
+    match event {
+        WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+        _ => state.input(event),
     }
+}
+
+fn run(event_loop: winit::event_loop::EventLoop<()>, mut state: State) {
+    state.gosper_glider_gun();
+    state.blinkers();
+    state.pulsars();
 
     event_loop.run(move |event, _, control_flow| match event {
         Event::WindowEvent { ref event, .. } => handle_win_event(event, &mut state, control_flow),
@@ -51,4 +47,11 @@ fn run(event_loop: winit::event_loop::EventLoop<()>, mut state: State) {
         Event::MainEventsCleared => state.window().request_redraw(),
         _ => (),
     })
+}
+
+fn main() {
+    let (event_loop, window) = setup_window();
+    let state = state::init(window);
+
+    run(event_loop, state);
 }

@@ -7,8 +7,28 @@ pub enum CellState {
     Alive,
 }
 
-const SCALE_FACTOR: f32 = 43.0;
-const GRID_OFFSET: f32 = 10.0;
+impl CellState {
+    pub fn is_alive(&self) -> bool {
+        match self {
+            CellState::Alive => true,
+            _ => false,
+        }
+    }
+}
+
+impl std::ops::Not for CellState {
+    type Output = Self;
+    fn not(self) -> Self::Output {
+        match self {
+            CellState::Alive => CellState::Dead,
+            CellState::Dead => CellState::Alive,
+        }
+    }
+}
+
+pub const SCALE_FACTOR: f32 = 10.0;
+pub const GRID_OFFSET: f32 = 5.0;
+pub const GS: f64 = SCALE_FACTOR as f64 + GRID_OFFSET as f64;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Cell {
@@ -22,7 +42,7 @@ impl std::default::Default for Cell {
         Self {
             x: 0,
             y: 0,
-            state: CellState::Alive,
+            state: CellState::Dead,
         }
     }
 }
@@ -31,6 +51,7 @@ impl std::default::Default for Cell {
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct CellInstance {
     pub model: [f32; 16],
+    pub state: u32,
 }
 
 impl std::convert::From<&Cell> for CellInstance {
@@ -45,6 +66,7 @@ impl std::convert::From<&Cell> for CellInstance {
 
         Self {
             model: transpose(model),
+            state: value.state as u32,
         }
     }
 }

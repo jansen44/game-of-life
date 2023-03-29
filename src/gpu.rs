@@ -4,7 +4,7 @@ mod uniform;
 mod vertex;
 
 use crate::{
-    cell::Cell,
+    cell::{Cell, CellInstance},
     state::{GRID_COLUMN_SIZE, GRID_LINE_SIZE},
 };
 use vertex::{VertexBuffer, INDICES};
@@ -80,6 +80,16 @@ impl Gpu {
             square_buffers,
             instance_buffers,
         }
+    }
+
+    pub fn update_cells(&self, cells: &[Cell]) {
+        let instance_data: Vec<CellInstance> =
+            cells.iter().map(|c| CellInstance::from(c)).collect();
+        self.queue.write_buffer(
+            &self.instance_buffers.cells,
+            0,
+            bytemuck::cast_slice(&instance_data),
+        )
     }
 
     pub fn render(&self) {
