@@ -4,9 +4,10 @@ use winit::window::Window;
 use crate::cell::{Cell, CellState, GRID_OFFSET, SCALE_FACTOR};
 use crate::gpu::Gpu;
 
-pub const GRID_LINE_SIZE: usize = 84;
-pub const GRID_COLUMN_SIZE: usize = 47;
-pub const TICK_PER_SEC: u32 = 15;
+// TODO: handle automatically
+pub const GRID_LINE_SIZE: usize = 85;
+pub const GRID_COLUMN_SIZE: usize = 48;
+pub const TICK_PER_SEC: u32 = 12;
 
 pub struct State {
     gpu: Gpu,
@@ -132,6 +133,7 @@ impl State {
         Self::cell_idx(i as u32, j as u32)
     }
 
+    // TODO: better input handling
     pub fn input(&mut self, event: &winit::event::WindowEvent) {
         use winit::event::{ElementState, KeyboardInput, VirtualKeyCode, WindowEvent};
 

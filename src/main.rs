@@ -7,7 +7,7 @@ use state::State;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::ControlFlow;
 
-const WIN_WIDTH: u32 = 1283;
+const WIN_WIDTH: u32 = 1280;
 const WIN_HEIGHT: u32 = 720;
 
 fn setup_window() -> (winit::event_loop::EventLoop<()>, winit::window::Window) {

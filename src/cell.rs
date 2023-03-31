@@ -58,8 +58,8 @@ impl std::convert::From<&Cell> for CellInstance {
     fn from(value: &Cell) -> Self {
         #[rustfmt::skip]
         let model = [
-            SCALE_FACTOR, 0.0,          0.0, ((SCALE_FACTOR+GRID_OFFSET) * value.x as f32) + SCALE_FACTOR / 2.0 + 14.0,
-            0.0,          SCALE_FACTOR, 0.0, ((SCALE_FACTOR+GRID_OFFSET) * value.y as f32) + SCALE_FACTOR / 2.0 + 8.0,
+            SCALE_FACTOR, 0.0,          0.0, ((SCALE_FACTOR+GRID_OFFSET) * value.x as f32) + SCALE_FACTOR / 2.0 + 5.0, // 5.0 => little offset to center the grid
+            0.0,          SCALE_FACTOR, 0.0, ((SCALE_FACTOR+GRID_OFFSET) * value.y as f32) + SCALE_FACTOR / 2.0,
             0.0,          0.0,          1.0, 0.0,
             0.0,          0.0,          0.0, 1.0,
         ];
