@@ -82,6 +82,12 @@ impl Gpu {
         }
     }
 
+    pub fn resize(&mut self, dimensions: winit::dpi::PhysicalSize<u32>) {
+        self.surface_config.width = dimensions.width;
+        self.surface_config.height = dimensions.height;
+        self.surface.configure(&self.device, &self.surface_config);
+    }
+
     pub fn update_cells(&self, cells: &[Cell]) {
         let instance_data: Vec<CellInstance> =
             cells.iter().map(|c| CellInstance::from(c)).collect();

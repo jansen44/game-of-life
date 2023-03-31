@@ -4,8 +4,8 @@ use winit::window::Window;
 use crate::cell::{Cell, CellState, GRID_OFFSET, SCALE_FACTOR};
 use crate::gpu::Gpu;
 
-pub const GRID_LINE_SIZE: usize = 170;
-pub const GRID_COLUMN_SIZE: usize = 95;
+pub const GRID_LINE_SIZE: usize = 84;
+pub const GRID_COLUMN_SIZE: usize = 47;
 pub const TICK_PER_SEC: u32 = 15;
 
 pub struct State {
@@ -32,6 +32,7 @@ impl State {
         }
 
         let gpu = Gpu::new(&window, &cells[..]).await;
+        log::info!("state initialized");
 
         Self {
             gpu,
@@ -54,6 +55,10 @@ impl State {
 
     pub fn window(&self) -> &Window {
         &self.window
+    }
+
+    pub fn resize(&mut self, dimensions: winit::dpi::PhysicalSize<u32>) {
+        self.gpu.resize(dimensions);
     }
 
     fn tick(&mut self) {
@@ -255,121 +260,61 @@ impl State {
         alive_state_at!(self => 23, 29);
         alive_state_at!(self => 25, 29);
 
-        alive_state_at!(self => 29, 45);
-        alive_state_at!(self => 29, 46);
-        alive_state_at!(self => 29, 47);
-        alive_state_at!(self => 28, 46);
-        alive_state_at!(self => 30, 46);
-
-        alive_state_at!(self => 19, 58);
-        alive_state_at!(self => 19, 59);
-        alive_state_at!(self => 19, 60);
-        alive_state_at!(self => 18, 59);
-        alive_state_at!(self => 20, 59);
-
-        alive_state_at!(self => 7, 66);
-        alive_state_at!(self => 7, 67);
-        alive_state_at!(self => 7, 68);
-        alive_state_at!(self => 6, 67);
-        alive_state_at!(self => 8, 67);
-
-        alive_state_at!(self => 5, 51);
-        alive_state_at!(self => 5, 52);
-        alive_state_at!(self => 5, 53);
-        alive_state_at!(self => 4, 52);
-        alive_state_at!(self => 6, 52);
-
-        alive_state_at!(self => 30, 65);
-        alive_state_at!(self => 30, 66);
-        alive_state_at!(self => 30, 67);
-        alive_state_at!(self => 29, 66);
-        alive_state_at!(self => 31, 66);
-
-        alive_state_at!(self => 18, 73);
-        alive_state_at!(self => 18, 74);
-        alive_state_at!(self => 18, 75);
-        alive_state_at!(self => 17, 74);
-        alive_state_at!(self => 19, 74);
-
-        alive_state_at!(self => 37, 77);
-        alive_state_at!(self => 37, 78);
-        alive_state_at!(self => 37, 79);
-        alive_state_at!(self => 36, 78);
-        alive_state_at!(self => 38, 78);
-
-        alive_state_at!(self => 26, 83);
-        alive_state_at!(self => 26, 84);
-        alive_state_at!(self => 26, 85);
-        alive_state_at!(self => 25, 84);
-        alive_state_at!(self => 27, 84);
-
-        alive_state_at!(self => 7, 84);
-        alive_state_at!(self => 7, 85);
-        alive_state_at!(self => 7, 86);
-        alive_state_at!(self => 6, 85);
-        alive_state_at!(self => 8, 85);
-
-        alive_state_at!(self => 42, 57);
-        alive_state_at!(self => 43, 57);
-        alive_state_at!(self => 44, 57);
-        alive_state_at!(self => 43, 56);
-        alive_state_at!(self => 43, 58);
-
         self.gpu.update_cells(&self.cells);
     }
 
     pub fn pulsars(&mut self) {
-        alive_state_at!(self => 78, 14);
-        alive_state_at!(self => 78, 15);
-        alive_state_at!(self => 78, 16);
-        alive_state_at!(self => 77, 17);
-        alive_state_at!(self => 76, 17);
-        alive_state_at!(self => 75, 17);
-        alive_state_at!(self => 77, 12);
-        alive_state_at!(self => 76, 12);
-        alive_state_at!(self => 75, 12);
-        alive_state_at!(self => 73, 16);
-        alive_state_at!(self => 73, 15);
-        alive_state_at!(self => 73, 14);
+        alive_state_at!(self => 68, 14);
+        alive_state_at!(self => 68, 15);
+        alive_state_at!(self => 68, 16);
+        alive_state_at!(self => 67, 17);
+        alive_state_at!(self => 66, 17);
+        alive_state_at!(self => 65, 17);
+        alive_state_at!(self => 67, 12);
+        alive_state_at!(self => 66, 12);
+        alive_state_at!(self => 65, 12);
+        alive_state_at!(self => 63, 16);
+        alive_state_at!(self => 63, 15);
+        alive_state_at!(self => 63, 14);
 
-        alive_state_at!(self => 80, 16);
-        alive_state_at!(self => 80, 15);
-        alive_state_at!(self => 80, 14);
-        alive_state_at!(self => 75, 19);
-        alive_state_at!(self => 76, 19);
-        alive_state_at!(self => 77, 19);
-        alive_state_at!(self => 78, 20);
-        alive_state_at!(self => 78, 21);
-        alive_state_at!(self => 78, 22);
-        alive_state_at!(self => 81, 17);
-        alive_state_at!(self => 82, 17);
-        alive_state_at!(self => 83, 17);
+        alive_state_at!(self => 70, 16);
+        alive_state_at!(self => 70, 15);
+        alive_state_at!(self => 70, 14);
+        alive_state_at!(self => 65, 19);
+        alive_state_at!(self => 66, 19);
+        alive_state_at!(self => 67, 19);
+        alive_state_at!(self => 68, 20);
+        alive_state_at!(self => 68, 21);
+        alive_state_at!(self => 68, 22);
+        alive_state_at!(self => 71, 17);
+        alive_state_at!(self => 72, 17);
+        alive_state_at!(self => 73, 17);
 
-        alive_state_at!(self => 81, 19);
-        alive_state_at!(self => 82, 19);
-        alive_state_at!(self => 83, 19);
-        alive_state_at!(self => 80, 20);
-        alive_state_at!(self => 80, 21);
-        alive_state_at!(self => 80, 22);
-        alive_state_at!(self => 77, 24);
-        alive_state_at!(self => 76, 24);
-        alive_state_at!(self => 75, 24);
-        alive_state_at!(self => 73, 20);
-        alive_state_at!(self => 73, 21);
-        alive_state_at!(self => 73, 22);
+        alive_state_at!(self => 71, 19);
+        alive_state_at!(self => 72, 19);
+        alive_state_at!(self => 73, 19);
+        alive_state_at!(self => 70, 20);
+        alive_state_at!(self => 70, 21);
+        alive_state_at!(self => 70, 22);
+        alive_state_at!(self => 67, 24);
+        alive_state_at!(self => 66, 24);
+        alive_state_at!(self => 65, 24);
+        alive_state_at!(self => 63, 20);
+        alive_state_at!(self => 63, 21);
+        alive_state_at!(self => 63, 22);
 
-        alive_state_at!(self => 81, 24);
-        alive_state_at!(self => 82, 24);
-        alive_state_at!(self => 83, 24);
-        alive_state_at!(self => 85, 20);
-        alive_state_at!(self => 85, 21);
-        alive_state_at!(self => 85, 22);
-        alive_state_at!(self => 85, 16);
-        alive_state_at!(self => 85, 15);
-        alive_state_at!(self => 85, 14);
-        alive_state_at!(self => 81, 12);
-        alive_state_at!(self => 82, 12);
-        alive_state_at!(self => 83, 12);
+        alive_state_at!(self => 71, 24);
+        alive_state_at!(self => 72, 24);
+        alive_state_at!(self => 73, 24);
+        alive_state_at!(self => 75, 20);
+        alive_state_at!(self => 75, 21);
+        alive_state_at!(self => 75, 22);
+        alive_state_at!(self => 75, 16);
+        alive_state_at!(self => 75, 15);
+        alive_state_at!(self => 75, 14);
+        alive_state_at!(self => 71, 12);
+        alive_state_at!(self => 72, 12);
+        alive_state_at!(self => 73, 12);
 
         self.gpu.update_cells(&self.cells);
     }
