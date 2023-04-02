@@ -1,28 +1,35 @@
+use egui_winit::winit;
 use winit::dpi::PhysicalPosition;
 use winit::window::Window;
 
-use crate::cell::{Cell, CellState, GRID_OFFSET, SCALE_FACTOR};
+use crate::cell::{Cell, CellState};
 use crate::gpu::Gpu;
+use crate::gui::GuiCtx;
 
 // TODO: handle automatically
-pub const GRID_LINE_SIZE: usize = 85;
-pub const GRID_COLUMN_SIZE: usize = 48;
+pub const GRID_LINE_SIZE: usize = 100;
+pub const GRID_COLUMN_SIZE: usize = 100;
 pub const TICK_PER_SEC: u32 = 12;
+
+pub const INITIAL_SCALE_FACTOR: f32 = 10.0;
+pub const INITIAL_OFFSET: f32 = 5.0;
 
 pub struct State {
     gpu: Gpu,
     window: Window,
+    ctx: GuiCtx,
+
     pub cells: [Cell; GRID_LINE_SIZE * GRID_COLUMN_SIZE],
 
     mouse_pos: PhysicalPosition<f64>,
     mouse_left_pressed: bool,
     mouse_right_pressed: bool,
 
-    running: bool,
+    gui_state: crate::gui::State,
 }
 
 impl State {
-    pub async fn new(window: Window) -> Self {
+    pub async fn new(window: Window, event_loop: &winit::event_loop::EventLoop<()>) -> Self {
         let mut cells = [Cell::default(); GRID_LINE_SIZE * GRID_COLUMN_SIZE];
         for i in 0..GRID_LINE_SIZE {
             for j in 0..GRID_COLUMN_SIZE {
@@ -32,17 +39,28 @@ impl State {
             }
         }
 
-        let gpu = Gpu::new(&window, &cells[..]).await;
+        let gpu = Gpu::new(&window, &cells[..], INITIAL_SCALE_FACTOR, INITIAL_OFFSET).await;
+        let ctx = GuiCtx::new(event_loop, gpu.device(), gpu.surface_config(), &window);
+
         log::info!("state initialized");
 
         Self {
             gpu,
             window,
+            ctx,
             cells,
             mouse_pos: PhysicalPosition::<f64>::new(0.0, 0.0),
             mouse_left_pressed: false,
             mouse_right_pressed: false,
-            running: false,
+
+            gui_state: crate::gui::State {
+                running: false,
+                clear_color_r: 0.01,
+                clear_color_g: 0.01,
+                clear_color_b: 0.02,
+                cell_scale_factor: INITIAL_SCALE_FACTOR,
+                cell_offset: INITIAL_OFFSET,
+            },
         }
     }
 
@@ -104,12 +122,17 @@ impl State {
 
             cell
         });
-        self.gpu.update_cells(&cells);
         self.cells = cells;
     }
 
     pub fn update(&mut self) {
-        if self.running {
+        self.gpu.update_cells(
+            &self.cells,
+            self.gui_state.cell_scale_factor,
+            self.gui_state.cell_offset,
+        );
+
+        if self.gui_state.running {
             let start = std::time::Instant::now();
 
             self.tick();
@@ -120,15 +143,29 @@ impl State {
             }
         }
 
-        self.gpu.render();
+        let output = self.ctx.build_ui(&mut self.gui_state, &self.window);
+
+        let clear_color = wgpu::Color {
+            a: 1.0,
+            r: self.gui_state.clear_color_r,
+            g: self.gui_state.clear_color_g,
+            b: self.gui_state.clear_color_b,
+        };
+
+        self.gpu.render(&mut self.ctx, output, clear_color);
     }
 
-    pub fn cell_index_from_pos(pos: &PhysicalPosition<f64>) -> usize {
-        let i = pos.x - (GRID_OFFSET as f64) - (SCALE_FACTOR as f64 / 2.0);
-        let j = pos.y - (GRID_OFFSET as f64) - (SCALE_FACTOR as f64 / 2.0);
+    pub fn cell_index_from_pos(
+        pos: &PhysicalPosition<f64>,
+        scale_factor: f32,
+        offset: f32,
+    ) -> usize {
+        let gs = scale_factor as f64 + offset as f64;
+        let i = pos.x - (offset as f64) - (scale_factor as f64 / 2.0);
+        let j = pos.y - (offset as f64) - (scale_factor as f64 / 2.0);
 
-        let i = (i / crate::cell::GS).floor() as usize;
-        let j = (j / crate::cell::GS).floor() as usize;
+        let i = (i / gs).floor() as usize;
+        let j = (j / gs).floor() as usize;
 
         Self::cell_idx(i as u32, j as u32)
     }
@@ -137,15 +174,22 @@ impl State {
     pub fn input(&mut self, event: &winit::event::WindowEvent) {
         use winit::event::{ElementState, KeyboardInput, VirtualKeyCode, WindowEvent};
 
-        if !self.running && self.mouse_left_pressed || self.mouse_right_pressed {
-            let idx = Self::cell_index_from_pos(&self.mouse_pos);
+        if self.ctx.on_event(event) {
+            return;
+        }
+
+        if !self.gui_state.running && self.mouse_left_pressed || self.mouse_right_pressed {
+            let idx = Self::cell_index_from_pos(
+                &self.mouse_pos,
+                self.gui_state.cell_scale_factor,
+                self.gui_state.cell_offset,
+            );
             if idx < self.cells.len() {
                 if self.mouse_left_pressed {
                     self.cells[idx].state = CellState::Alive;
                 } else if self.mouse_right_pressed {
                     self.cells[idx].state = CellState::Dead;
                 }
-                self.gpu.update_cells(&self.cells);
             }
         }
 
@@ -175,10 +219,13 @@ impl State {
                     for cell in self.cells.iter_mut() {
                         cell.state = CellState::Dead;
                     }
-                    self.gpu.update_cells(&self.cells);
                 }
-                Some(k) if *k == VirtualKeyCode::S && !self.running => self.running = true,
-                Some(k) if *k == VirtualKeyCode::P && self.running => self.running = false,
+                Some(k) if *k == VirtualKeyCode::S && !self.gui_state.running => {
+                    self.gui_state.running = true
+                }
+                Some(k) if *k == VirtualKeyCode::P && self.gui_state.running => {
+                    self.gui_state.running = false
+                }
                 _ => (),
             },
             _ => (),
@@ -239,8 +286,6 @@ impl State {
         alive_state_at!(self => 35, 4);
         alive_state_at!(self => 36, 3);
         alive_state_at!(self => 36, 4);
-
-        self.gpu.update_cells(&self.cells);
     }
 
     pub fn blinkers(&mut self) {
@@ -261,8 +306,6 @@ impl State {
         alive_state_at!(self => 24, 30);
         alive_state_at!(self => 23, 29);
         alive_state_at!(self => 25, 29);
-
-        self.gpu.update_cells(&self.cells);
     }
 
     pub fn pulsars(&mut self) {
@@ -317,11 +360,9 @@ impl State {
         alive_state_at!(self => 71, 12);
         alive_state_at!(self => 72, 12);
         alive_state_at!(self => 73, 12);
-
-        self.gpu.update_cells(&self.cells);
     }
 }
 
-pub fn init(window: Window) -> State {
-    pollster::block_on(State::new(window))
+pub fn init(window: Window, event_loop: &winit::event_loop::EventLoop<()>) -> State {
+    pollster::block_on(State::new(window, event_loop))
 }

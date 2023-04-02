@@ -1,14 +1,16 @@
 mod cell;
 mod gpu;
+mod gui;
 mod math;
 mod state;
 
+use egui_winit::winit;
 use state::State;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::ControlFlow;
 
-const WIN_WIDTH: u32 = 1280;
-const WIN_HEIGHT: u32 = 720;
+const WIN_WIDTH: u32 = 610;
+const WIN_HEIGHT: u32 = 610;
 
 fn setup_window() -> (winit::event_loop::EventLoop<()>, winit::window::Window) {
     simple_logger::SimpleLogger::new()
@@ -54,7 +56,7 @@ fn run(event_loop: winit::event_loop::EventLoop<()>, mut state: State) {
 
 fn main() {
     let (event_loop, window) = setup_window();
-    let state = state::init(window);
+    let state = state::init(window, &event_loop);
 
     run(event_loop, state);
 }

@@ -3,8 +3,11 @@ mod pipeline;
 mod uniform;
 mod vertex;
 
+use egui_winit::winit;
+
 use crate::{
     cell::{Cell, CellInstance},
+    gui::GuiCtx,
     state::{GRID_COLUMN_SIZE, GRID_LINE_SIZE},
 };
 use vertex::{VertexBuffer, INDICES};
@@ -27,12 +30,17 @@ pub struct Gpu {
     square_buffers: VertexBuffer,
     instance_buffers: InstanceBuffers,
 
-    pub surface_config: SurfaceConfiguration,
+    surface_config: SurfaceConfiguration,
     pub surface_caps: SurfaceCapabilities,
 }
 
 impl Gpu {
-    pub async fn new(window: &winit::window::Window, cells: &[Cell]) -> Self {
+    pub async fn new(
+        window: &winit::window::Window,
+        cells: &[Cell],
+        scale_factor: f32,
+        offset: f32,
+    ) -> Self {
         let dimensions = window.inner_size();
 
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::default());
@@ -65,7 +73,7 @@ impl Gpu {
         surface.configure(&device, &surface_config);
 
         let square_buffers = init_buffers(&device);
-        let instance_buffers = init_cell_instances(&device, cells);
+        let instance_buffers = init_cell_instances(&device, cells, scale_factor, offset);
         let uniform_buffers = init_uniforms(&device, dimensions);
         let square_pipeline = init_pipeline(&device, &surface_config, &uniform_buffers);
 
@@ -82,15 +90,25 @@ impl Gpu {
         }
     }
 
+    pub fn device(&self) -> &Device {
+        &self.device
+    }
+
+    pub fn surface_config(&self) -> &SurfaceConfiguration {
+        &self.surface_config
+    }
+
     pub fn resize(&mut self, dimensions: winit::dpi::PhysicalSize<u32>) {
         self.surface_config.width = dimensions.width;
         self.surface_config.height = dimensions.height;
         self.surface.configure(&self.device, &self.surface_config);
     }
 
-    pub fn update_cells(&self, cells: &[Cell]) {
-        let instance_data: Vec<CellInstance> =
-            cells.iter().map(|c| CellInstance::from(c)).collect();
+    pub fn update_cells(&self, cells: &[Cell], scale_factor: f32, offset: f32) {
+        let instance_data: Vec<CellInstance> = cells
+            .iter()
+            .map(|c| CellInstance::from_cell(c, scale_factor, offset))
+            .collect();
         self.queue.write_buffer(
             &self.instance_buffers.cells,
             0,
@@ -98,7 +116,12 @@ impl Gpu {
         )
     }
 
-    pub fn render(&self) {
+    pub fn render(
+        &self,
+        gui: &mut GuiCtx,
+        build_output: egui::FullOutput,
+        clear_color: wgpu::Color,
+    ) {
         let output = self.surface.get_current_texture().unwrap();
 
         let view = output
@@ -108,6 +131,8 @@ impl Gpu {
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
 
+        let primitives = gui.prepare(&self.device, &self.queue, &mut encoder, build_output);
+
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
@@ -115,12 +140,7 @@ impl Gpu {
                     view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.01,
-                            g: 0.01,
-                            b: 0.02,
-                            a: 1.0,
-                        }),
+                        load: wgpu::LoadOp::Clear(clear_color),
                         store: true,
                     },
                 })],
@@ -143,6 +163,9 @@ impl Gpu {
                 0,
                 0..(GRID_COLUMN_SIZE * GRID_LINE_SIZE) as _,
             );
+
+            gui.renderer()
+                .render(&mut pass, &primitives, gui.screen_descriptor());
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));

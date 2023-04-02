@@ -26,10 +26,6 @@ impl std::ops::Not for CellState {
     }
 }
 
-pub const SCALE_FACTOR: f32 = 10.0;
-pub const GRID_OFFSET: f32 = 5.0;
-pub const GS: f64 = SCALE_FACTOR as f64 + GRID_OFFSET as f64;
-
 #[derive(Clone, Copy, Debug)]
 pub struct Cell {
     pub x: u32,
@@ -54,19 +50,19 @@ pub struct CellInstance {
     pub state: u32,
 }
 
-impl std::convert::From<&Cell> for CellInstance {
-    fn from(value: &Cell) -> Self {
+impl CellInstance {
+    pub fn from_cell(cell: &Cell, scale_factor: f32, offset: f32) -> Self {
         #[rustfmt::skip]
         let model = [
-            SCALE_FACTOR, 0.0,          0.0, ((SCALE_FACTOR+GRID_OFFSET) * value.x as f32) + SCALE_FACTOR / 2.0 + 5.0, // 5.0 => little offset to center the grid
-            0.0,          SCALE_FACTOR, 0.0, ((SCALE_FACTOR+GRID_OFFSET) * value.y as f32) + SCALE_FACTOR / 2.0,
+            scale_factor, 0.0,          0.0, ((scale_factor + offset) * cell.x as f32) + scale_factor / 2.0 + 6.0, // 4.0 => little offset to center the grid
+            0.0,          scale_factor, 0.0, ((scale_factor + offset) * cell.y as f32) + scale_factor / 2.0 + 6.0,
             0.0,          0.0,          1.0, 0.0,
             0.0,          0.0,          0.0, 1.0,
         ];
 
         Self {
             model: transpose(model),
-            state: value.state as u32,
+            state: cell.state as u32,
         }
     }
 }

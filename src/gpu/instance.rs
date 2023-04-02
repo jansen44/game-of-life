@@ -42,8 +42,16 @@ impl InstanceBuffers {
     }
 }
 
-pub fn init_cell_instances(device: &Device, cells: &[Cell]) -> InstanceBuffers {
-    let instance_data: Vec<CellInstance> = cells.iter().map(|c| CellInstance::from(c)).collect();
+pub fn init_cell_instances(
+    device: &Device,
+    cells: &[Cell],
+    scale_factor: f32,
+    offset: f32,
+) -> InstanceBuffers {
+    let instance_data: Vec<CellInstance> = cells
+        .iter()
+        .map(|c| CellInstance::from_cell(c, scale_factor, offset))
+        .collect();
     let cells = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: None,
         contents: bytemuck::cast_slice(&instance_data),
